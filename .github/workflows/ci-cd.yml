@@ -1,0 +1,61 @@
+name: CI/CD - Flash Sales
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # 0. SAST - roda em paralelo, sem dependência
+  sast:
+    name: "0. SAST (njsscan)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Análise estática de segurança
+        uses: ajinabraham/njsscan-action@master
+        with:
+          args: "."            # escaneia o projeto todo; achou falha = job vermelho
+
+  # 1. Build - roda em paralelo, sem dependência
+  build:
+    name: "1. Build"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm           # guarda o node_modules entre execuções (mais rápido)
+      - run: npm ci            # instala EXATAMENTE o que está no package-lock
+      - run: npm run build
+
+  # 2. Lint - só roda se o build passar
+  lint:
+    name: "2. Lint & Quality"
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  # 3. Test - só roda se o build passar
+  test:
+    name: "3. Test"
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
